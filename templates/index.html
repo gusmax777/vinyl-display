@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vinyl Audio Station</title>
+  <style>
+    :root {
+      --accent: #e5a93b;
+      --bg: #08090b;
+      --card-bg: rgba(22, 24, 30, 0.75);
+      --border: rgba(255, 255, 255, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background: var(--bg);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    #ambient-bg {
+      position: absolute;
+      top: -20%;
+      left: -20%;
+      width: 140%;
+      height: 140%;
+      object-fit: cover;
+      filter: blur(90px) brightness(0.2) saturate(1.4);
+      z-index: 1;
+      transition: filter 1.2s ease;
+    }
+
+    .main-wrapper {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 50px;
+      max-width: 1550px;
+      width: 92vw;
+      align-items: center;
+    }
+
+    .artwork-container {
+      position: relative;
+      width: 420px;
+      height: 420px;
+    }
+    #cover {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 16px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.85);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .meta-container {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #aaa;
+      backdrop-filter: blur(10px);
+      width: fit-content;
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      background: #e50914;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #e50914;
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; }
+    }
+
+    #title {
+      font-size: 2.8rem;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.5px;
+      color: #fff;
+      text-shadow: 0 4px 15px rgba(0,0,0,0.6);
+    }
+
+    #artist {
+      font-size: 1.6rem;
+      color: #dcdcdc;
+      font-weight: 400;
+      margin-top: 2px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .info-tile {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      border-radius: 10px;
+      backdrop-filter: blur(16px);
+    }
+    .info-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #888;
+      margin-bottom: 2px;
+    }
+    .info-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #f1f1f1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .story-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 18px 22px;
+      border-radius: 12px;
+      backdrop-filter: blur(16px);
+    }
+    .story-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    #summary {
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: #d0d0d0;
+      max-height: 270px;
+      overflow-y: hidden;
+      text-align: justify;
+    }
+  </style>
+</head>
+<body>
+
+  <img id="ambient-bg" src="" alt="">
+
+  <div class="main-wrapper">
+    <div class="artwork-container">
+      <img id="cover" src="" alt="Album Artwork">
+    </div>
+
+    <div class="meta-container">
+      <div class="status-badge">
+        <span class="pulse-dot"></span>
+        VINYL ANALOG PLAYBACK
+      </div>
+      
+      <div>
+        <div id="title">Waiting for Needle...</div>
+        <div id="artist">Start the turntable</div>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-tile">
+          <div class="info-label">Album</div>
+          <div id="album" class="info-value">—</div>
+        </div>
+        <div class="info-tile">
+          <div class="info-label">Release Year</div>
+          <div id="year" class="info-value">—</div>
+        </div>
+        <div class="info-tile">
+          <div class="info-label">Genre</div>
+          <div id="genre" class="info-value">—</div>
+        </div>
+        <div class="info-tile">
+          <div class="info-label">Record Label</div>
+          <div id="label" class="info-value">—</div>
+        </div>
+      </div>
+
+      <div class="story-card">
+        <div class="story-title">Background & History</div>
+        <div id="summary">Waiting for recognition...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let lastTrack = "";
+
+    async function updateDashboard() {
+      try {
+        const res = await fetch('/status');
+        const data = await res.json();
+        
+        if (data.title && (data.title + data.artist) !== lastTrack) {
+          lastTrack = data.title + data.artist;
+          
+          document.getElementById('title').textContent = data.title;
+          document.getElementById('artist').textContent = data.artist;
+          document.getElementById('album').textContent = data.album || '—';
+          document.getElementById('year').textContent = data.year || '—';
+          document.getElementById('genre').textContent = data.genre || '—';
+          document.getElementById('label').textContent = data.label || '—';
+          document.getElementById('summary').textContent = data.summary || 'No background story available for this record.';
+          
+          if (data.cover) {
+            document.getElementById('cover').src = data.cover;
+            document.getElementById('ambient-bg').src = data.cover;
+          }
+        }
+      } catch (err) {
+        console.error("Dashboard poll error:", err);
+      }
+    }
+
+    setInterval(updateDashboard, 4000);
+    updateDashboard();
+  </script>
+</body>
+</html>
