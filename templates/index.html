@@ -64,7 +64,7 @@
     .meta-container {
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 16px;
     }
 
     .status-badge {
@@ -157,9 +157,67 @@
       font-size: 0.85rem;
       line-height: 1.5;
       color: #d0d0d0;
-      max-height: 270px;
+      max-height: 200px;
       overflow-y: hidden;
       text-align: justify;
+    }
+
+    /* Recently Played Section */
+    .recent-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .recent-title {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #888;
+      font-weight: 700;
+    }
+    .recent-list {
+      display: flex;
+      gap: 12px;
+      overflow: hidden;
+    }
+    .recent-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 6px 12px 6px 6px;
+      border-radius: 8px;
+      backdrop-filter: blur(12px);
+      max-width: 220px;
+      flex-shrink: 0;
+    }
+    .recent-thumb {
+      width: 38px;
+      height: 38px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+    .recent-info {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .recent-album {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #eee;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .recent-artist {
+      font-size: 0.65rem;
+      color: #999;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   </style>
 </head>
@@ -169,7 +227,7 @@
 
   <div class="main-wrapper">
     <div class="artwork-container">
-      <img id="cover" src="" alt="Album Artwork">
+      <img id="cover" src="/static/default_vinyl.svg" alt="Turntable Ready">
     </div>
 
     <div class="meta-container">
@@ -179,7 +237,7 @@
       </div>
       
       <div>
-        <div id="title">Waiting for Needle...</div>
+        <div id="title">Waiting for needle...</div>
         <div id="artist">Start the turntable</div>
       </div>
 
@@ -204,7 +262,12 @@
 
       <div class="story-card">
         <div class="story-title">Background & History</div>
-        <div id="summary">Waiting for recognition...</div>
+        <div id="summary">Put a record on to display background stories and album details.</div>
+      </div>
+
+      <div class="recent-section" id="recent-container" style="display: none;">
+        <div class="recent-title">Recently Played Albums</div>
+        <div class="recent-list" id="recent-list"></div>
       </div>
     </div>
   </div>
@@ -231,10 +294,32 @@
           if (data.cover) {
             document.getElementById('cover').src = data.cover;
             document.getElementById('ambient-bg').src = data.cover;
+          } else {
+            document.getElementById('cover').src = "/static/default_vinyl.svg";
+            document.getElementById('ambient-bg').src = "";
           }
         }
+
+        // Render Recently Played
+        const recentBox = document.getElementById('recent-container');
+        const recentList = document.getElementById('recent-list');
+        if (data.recent && data.recent.length > 0) {
+          recentBox.style.display = 'flex';
+          recentList.innerHTML = data.recent.map(item => `
+            <div class="recent-card">
+              <img class="recent-thumb" src="${item.cover || '/static/default_vinyl.svg'}" alt="Cover">
+              <div class="recent-info">
+                <span class="recent-album" title="${item.album}">${item.album}</span>
+                <span class="recent-artist" title="${item.artist}">${item.artist}</span>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          recentBox.style.display = 'none';
+        }
+
       } catch (err) {
-        console.error("Dashboard poll error:", err);
+        console.error("Dashboard update error:", err);
       }
     }
 
