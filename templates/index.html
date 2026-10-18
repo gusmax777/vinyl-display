@@ -162,7 +162,6 @@
       text-align: justify;
     }
 
-    /* Recently Played Section */
     .recent-section {
       display: flex;
       flex-direction: column;
@@ -233,7 +232,7 @@
     <div class="meta-container">
       <div class="status-badge">
         <span class="pulse-dot"></span>
-        VINYL ANALOG PLAYBACK
+        <span id="txt-badge">VINYL ANALOG PLAYBACK</span>
       </div>
       
       <div>
@@ -243,30 +242,30 @@
 
       <div class="info-grid">
         <div class="info-tile">
-          <div class="info-label">Album</div>
+          <div class="info-label" id="lbl-album">Album</div>
           <div id="album" class="info-value">—</div>
         </div>
         <div class="info-tile">
-          <div class="info-label">Release Year</div>
+          <div class="info-label" id="lbl-year">Release Year</div>
           <div id="year" class="info-value">—</div>
         </div>
         <div class="info-tile">
-          <div class="info-label">Genre</div>
+          <div class="info-label" id="lbl-genre">Genre</div>
           <div id="genre" class="info-value">—</div>
         </div>
         <div class="info-tile">
-          <div class="info-label">Record Label</div>
+          <div class="info-label" id="lbl-label">Record Label</div>
           <div id="label" class="info-value">—</div>
         </div>
       </div>
 
       <div class="story-card">
-        <div class="story-title">Background & History</div>
+        <div class="story-title" id="lbl-history">Background & History</div>
         <div id="summary">Put a record on to display background stories and album details.</div>
       </div>
 
       <div class="recent-section" id="recent-container" style="display: none;">
-        <div class="recent-title">Recently Played Albums</div>
+        <div class="recent-title" id="lbl-recent">Recently Played Albums</div>
         <div class="recent-list" id="recent-list"></div>
       </div>
     </div>
@@ -280,6 +279,17 @@
         const res = await fetch('/status');
         const data = await res.json();
         
+        // Dynamische Übersetzung der Labels
+        if (data.i18n) {
+          document.getElementById('txt-badge').textContent = data.i18n.status_badge;
+          document.getElementById('lbl-album').textContent = data.i18n.label_album;
+          document.getElementById('lbl-year').textContent = data.i18n.label_year;
+          document.getElementById('lbl-genre').textContent = data.i18n.label_genre;
+          document.getElementById('lbl-label').textContent = data.i18n.label_record_label;
+          document.getElementById('lbl-history').textContent = data.i18n.label_history;
+          document.getElementById('lbl-recent').textContent = data.i18n.label_recent;
+        }
+
         if (data.title && (data.title + data.artist) !== lastTrack) {
           lastTrack = data.title + data.artist;
           
@@ -289,7 +299,7 @@
           document.getElementById('year').textContent = data.year || '—';
           document.getElementById('genre').textContent = data.genre || '—';
           document.getElementById('label').textContent = data.label || '—';
-          document.getElementById('summary').textContent = data.summary || 'No background story available for this record.';
+          document.getElementById('summary').textContent = data.summary;
           
           if (data.cover) {
             document.getElementById('cover').src = data.cover;

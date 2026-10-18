@@ -18,28 +18,61 @@ DISCOGS_TOKEN = os.getenv("DISCOGS_TOKEN", "")
 DISCOGS_USERNAME = os.getenv("DISCOGS_USERNAME", "")
 AUDIO_DEVICE = os.getenv("AUDIO_DEVICE", "plughw:2,0")
 PORT = int(os.getenv("PORT", 8080))
+LANGUAGE = os.getenv("LANGUAGE", "en").lower().strip()
 SAMPLE_FILE = "/tmp/sample.wav"
 
-# RMS amplitude threshold (levels below ~350-450 represent runout groove / idle hiss)
 SILENCE_THRESHOLD = 400
+
+# UI Label translations based on LANGUAGE
+I18N = {
+    "de": {
+        "status_badge": "VINYL ANALOG WIEDERGABE",
+        "idle_title": "Warte auf Nadel...",
+        "idle_artist": "Starte den Plattenspieler",
+        "idle_summary": "Lege eine Schallplatte auf, um Hintergrundgeschichten und Details anzuzeigen.",
+        "label_album": "Album",
+        "label_year": "Erscheinungsjahr",
+        "label_genre": "Genre",
+        "label_record_label": "Plattenlabel",
+        "label_history": "Hintergrund & Geschichte",
+        "label_recent": "Zuletzt gespielte Alben",
+        "fallback_story": "Aktuelle Wiedergabe: '{title}' aus dem Album '{album}' von {artist}."
+    },
+    "en": {
+        "status_badge": "VINYL ANALOG PLAYBACK",
+        "idle_title": "Waiting for needle...",
+        "idle_artist": "Start the turntable",
+        "idle_summary": "Put a record on to display background stories and album details.",
+        "label_album": "Album",
+        "label_year": "Release Year",
+        "label_genre": "Genre",
+        "label_record_label": "Record Label",
+        "label_history": "Background & History",
+        "label_recent": "Recently Played Albums",
+        "fallback_story": "Now playing '{title}' from the album '{album}' by {artist}."
+    }
+}
+
+t = I18N.get(LANGUAGE, I18N["en"])
 
 app = FastAPI()
 shazam = Shazam()
 
-# Serve static templates directory (for SVG / images)
+# Serve static directory for SVGs and local assets
 app.mount("/static", StaticFiles(directory="/home/admin/vinyl-display/templates"), name="static")
 
 IDLE_STATE = {
-    "title": "Waiting for needle...",
-    "artist": "Start the turntable",
+    "title": t["idle_title"],
+    "artist": t["idle_artist"],
     "album": "",
     "year": "",
     "label": "",
     "genre": "",
-    "summary": "Put a record on to display background stories and album details.",
+    "summary": t["idle_summary"],
     "cover": "",
     "discogs_status": "",
-    "recent": []
+    "recent": [],
+    "i18n": t
 }
 
 current_track = dict(IDLE_STATE)
@@ -48,7 +81,6 @@ silence_counter = 0
 added_albums_cache = set()
 
 def get_audio_rms(file_path: str) -> float:
-    """Calculates root mean square (RMS) amplitude of the 16-bit PCM WAV file."""
     try:
         with wave.open(file_path, 'rb') as wf:
             frames = wf.readframes(wf.getnframes())
@@ -61,43 +93,20 @@ def get_audio_rms(file_path: str) -> float:
         return 1000.0
 
 def add_album_to_discogs_collection(album: str, artist: str):
-    """Searches Discogs for the vinyl edition and appends it to the collection."""
+    detected_label = "—"
     if not DISCOGS_TOKEN or DISCOGS_TOKEN.startswith("your_"):
-        return "Discogs token not configured"
+        return "Discogs token not configured", detected_label
 
-    # Filter out generic ambient or frequency artifacts
     if any(k in album.lower() or k in artist.lower() for k in ["solfeggio", "hz", "binaural", "meditation"]):
-        return "Ignored generic sound"
+        return "Ignored generic drone", detected_label
 
     search_key = f"{artist} - {album}".lower()
-    if search_key in added_albums_cache:
-        return "Already processed in this session"
-
     headers = {
         "User-Agent": "VinylDisplayPi/2.0 (contact@local.home)",
         "Authorization": f"Discogs token={DISCOGS_TOKEN}"
     }
 
     try:
-        # Determine valid target folder
-        folder_url = f"https://api.discogs.com/users/{DISCOGS_USERNAME}/collection/folders"
-        f_res = requests.get(folder_url, headers=headers, timeout=5)
-        if f_res.status_code == 404:
-            return f"Error 404: User '{DISCOGS_USERNAME}' not found on Discogs"
-        elif f_res.status_code != 200:
-            return f"Error fetching collection folders ({f_res.status_code})"
-
-        folders = f_res.json().get("folders", [])
-        target_folder_id = None
-        for f in folders:
-            if f["id"] != 0:
-                target_folder_id = f["id"]
-                break
-
-        if target_folder_id is None:
-            target_folder_id = 1
-
-        # Search release on Discogs
         search_url = "https://api.discogs.com/database/search"
         params = {
             "release_title": album,
@@ -114,37 +123,47 @@ def add_album_to_discogs_collection(album: str, artist: str):
             results = r.json().get("results", [])
 
         if not results:
-            return "Album not found on Discogs"
+            return "Album not found on Discogs", detected_label
 
-        release_id = results[0]["id"]
-        release_title = results[0].get("title", f"{artist} - {album}")
+        release = results[0]
+        release_id = release["id"]
+        release_title = release.get("title", f"{artist} - {album}")
 
-        # Check existing collection entries
+        labels = release.get("label", [])
+        if labels and isinstance(labels, list):
+            detected_label = labels[0]
+
+        if search_key in added_albums_cache:
+            return f"Already in collection ({release_title})", detected_label
+
+        folder_url = f"https://api.discogs.com/users/{DISCOGS_USERNAME}/collection/folders"
+        f_res = requests.get(folder_url, headers=headers, timeout=5)
+        folders = f_res.json().get("folders", []) if f_res.status_code == 200 else []
+        target_folder_id = next((f["id"] for f in folders if f["id"] != 0), 1)
+
         check_url = f"https://api.discogs.com/users/{DISCOGS_USERNAME}/collection/folders/0/releases"
         check_res = requests.get(check_url, headers=headers, timeout=5)
         if check_res.status_code == 200:
             existing = [item["id"] for item in check_res.json().get("releases", [])]
             if release_id in existing:
                 added_albums_cache.add(search_key)
-                return f"Already in collection ({release_title})"
+                return f"Already in collection ({release_title})", detected_label
 
-        # Add release to collection
         add_url = f"https://api.discogs.com/users/{DISCOGS_USERNAME}/collection/folders/{target_folder_id}/releases/{release_id}"
         add_res = requests.post(add_url, headers=headers, timeout=5)
 
         if add_res.status_code in [200, 201]:
             added_albums_cache.add(search_key)
-            print(f"[Discogs] Added to collection: {release_title}")
-            return f"Added to Discogs: {release_title}"
+            print(f"[Discogs] Added to collection: {release_title} (Label: {detected_label})")
+            return f"Added to Discogs: {release_title}", detected_label
         else:
-            return f"Error adding release ({add_res.status_code})"
+            return f"Error adding release ({add_res.status_code})", detected_label
 
     except Exception as e:
         print(f"[Discogs Error] {e}")
-        return f"Discogs Error: {e}"
+        return f"Discogs Error: {e}", detected_label
 
 def clean_wiki_text(text: str, max_chars: int = 950) -> str:
-    """Strips references and markup from Wikipedia excerpts."""
     if not text:
         return ""
     text = re.sub(r'==+[^=]+==+', '', text)
@@ -159,7 +178,6 @@ def clean_wiki_text(text: str, max_chars: int = 950) -> str:
     return text[:max_chars] + "..."
 
 def clean_music_title(text: str) -> str:
-    """Removes release tags like (Remastered), [Deluxe], etc."""
     if not text:
         return ""
     text = re.sub(r'\(.*?(remaster|deluxe|bonus|live|version|anniversary).*?\)', '', text, flags=re.IGNORECASE)
@@ -168,30 +186,27 @@ def clean_music_title(text: str) -> str:
     return text.strip()
 
 def get_wiki_story(album: str, artist: str, title: str):
-    """Retrieves relevant music lore from English Wikipedia."""
+    wiki_lang = "de" if LANGUAGE == "de" else "en"
     headers = {"User-Agent": "VinylDisplayPi/2.0 (contact@local.home)"}
     clean_alb = clean_music_title(album)
     clean_art = clean_music_title(artist)
     clean_tit = clean_music_title(title)
 
-    MUSIC_KEYWORDS = ["album", "studio album", "band", "musician", "song", "single", "rock", "pop", "track", "recorded", "released"]
-    BLOCK_KEYWORDS = ["adult film", "porn", "holiday", "award ceremony", "football", "solfeggio", "meditation"]
+    music_terms = ["album", "studioalbum", "band", "musiker", "lied", "single", "rock", "pop", "titel", "aufgenommen", "veröffentlicht"] if wiki_lang == "de" else ["album", "studio album", "band", "musician", "song", "single", "rock", "pop", "track", "recorded", "released"]
+    block_terms = ["solfeggio", "meditation", "porn", "award", "fußball", "football"]
 
     search_queries = [
-        f'"{clean_alb}" (album)',
-        f'"{clean_alb}" {clean_art}',
-        f'"{clean_art}" (band)',
-        f'"{clean_art}" (musician)',
-        f'"{clean_tit}" {clean_art}',
-        clean_alb,
-        clean_art
+        f'"{clean_art}" "{clean_alb}"',
+        f'"{clean_alb}" (Album)' if wiki_lang == "de" else f'"{clean_alb}" (album)',
+        f'"{clean_art}"',
+        f'"{clean_tit}" {clean_art}'
     ]
 
     for query in search_queries:
         if not query or query.strip() in ['""', '']:
             continue
         try:
-            search_url = "https://en.wikipedia.org/w/api.php"
+            search_url = f"https://{wiki_lang}.wikipedia.org/w/api.php"
             params = {
                 "action": "query",
                 "list": "search",
@@ -220,8 +235,8 @@ def get_wiki_story(album: str, artist: str, title: str):
                 for _, pdata in pages.items():
                     extract = pdata.get("extract", "")
                     extract_lower = extract.lower()
-                    is_music = any(kw in extract_lower for kw in MUSIC_KEYWORDS)
-                    is_wrong = any(bad in extract_lower for bad in BLOCK_KEYWORDS)
+                    is_music = any(kw in extract_lower for kw in music_terms)
+                    is_wrong = any(bad in extract_lower for bad in block_terms)
 
                     if is_music and not is_wrong and len(extract) > 100:
                         found_year = ""
@@ -233,18 +248,23 @@ def get_wiki_story(album: str, artist: str, title: str):
         except Exception:
             continue
 
-    fallback = f"Now playing '{clean_tit}' from the album '{clean_alb}' by {clean_art}."
+    fallback = t["fallback_story"].format(title=clean_tit, album=clean_alb, artist=clean_art)
     return fallback, ""
 
 def fetch_rich_metadata(artist_name: str, track_title: str, shazam_album: str):
-    headers = {"User-Agent": "VinylDisplayPi/2.0 (contact@local.home)"}
+    final_album = clean_music_title(shazam_album) or track_title
     details = {
-        "album": clean_music_title(shazam_album) or track_title,
+        "album": final_album,
         "year": "—",
-        "label": "Vinyl Edition",
+        "label": "—",
         "summary": "",
         "discogs_status": ""
     }
+
+    disc_status, disc_label = add_album_to_discogs_collection(final_album, artist_name)
+    details["discogs_status"] = disc_status
+    if disc_label and disc_label != "—":
+        details["label"] = disc_label
 
     try:
         url = "https://musicbrainz.org/ws/2/recording"
@@ -253,43 +273,30 @@ def fetch_rich_metadata(artist_name: str, track_title: str, shazam_album: str):
             "fmt": "json",
             "limit": 3
         }
-        r = requests.get(url, params=params, headers=headers, timeout=4)
+        r = requests.get(url, params=params, headers={"User-Agent": "VinylDisplayPi/2.0"}, timeout=4)
         if r.status_code == 200:
             recordings = r.json().get("recordings", [])
             if recordings:
-                rec = recordings[0]
-                releases = rec.get("releases", [])
+                releases = recordings[0].get("releases", [])
                 years = []
                 for rel in releases:
                     d = rel.get("date", "")
                     match = re.search(r'\b(19\d\d|20\d\d)\b', d)
                     if match:
                         years.append(int(match.group(1)))
-                    rel_title = rel.get("title", "")
-                    if rel_title and not details["album"]:
-                        details["album"] = clean_music_title(rel_title)
-                    label_info = rel.get("label-info-list", [])
-                    if label_info and label_info[0].get("label"):
-                        details["label"] = label_info[0]["label"].get("name", details["label"])
+                    if details["label"] == "—":
+                        label_info = rel.get("label-info-list", [])
+                        if label_info and label_info[0].get("label"):
+                            details["label"] = label_info[0]["label"].get("name", "—")
                 if years:
                     details["year"] = str(min(years))
     except Exception as e:
         print(f"[MusicBrainz Error] {e}")
 
-    final_album = clean_music_title(shazam_album) if shazam_album else details["album"]
-    details["album"] = final_album
-
     wiki_text, wiki_year = get_wiki_story(final_album, artist_name, track_title)
-    if wiki_text:
-        details["summary"] = wiki_text
-    else:
-        details["summary"] = f"Now playing: {track_title} from the album {final_album} by {artist_name}."
-
+    details["summary"] = wiki_text or t["fallback_story"].format(title=track_title, album=final_album, artist=artist_name)
     if details["year"] == "—" and wiki_year:
         details["year"] = wiki_year
-
-    disc_status = add_album_to_discogs_collection(final_album, artist_name)
-    details["discogs_status"] = disc_status
 
     return details
 
@@ -313,7 +320,6 @@ async def recognition_loop():
             if os.path.exists(SAMPLE_FILE):
                 volume = get_audio_rms(SAMPLE_FILE)
 
-                # Silence or needle lift-off handling
                 if volume < SILENCE_THRESHOLD:
                     silence_counter += 1
                     if silence_counter >= 2 and current_track["title"] != IDLE_STATE["title"]:
@@ -330,9 +336,8 @@ async def recognition_loop():
                     title = track.get("title", "Unknown Track")
                     artist = track.get("subtitle", "Unknown Artist")
 
-                    # Discard monotonous frequency matches
                     block_terms = ["solfeggio", "hz", "binaural", "meditation frequency", "brown noise", "white noise"]
-                    if any(t in title.lower() or t in artist.lower() for t in block_terms):
+                    if any(b in title.lower() or b in artist.lower() for b in block_terms):
                         print(f"[Shazam Ignored] Filtered drone artifact: {title} by {artist}")
                         await asyncio.sleep(8)
                         continue
@@ -352,7 +357,6 @@ async def recognition_loop():
                         meta = await asyncio.to_thread(fetch_rich_metadata, artist, title, shazam_album)
                         album_name = meta["album"] or title
 
-                        # Update recently played albums
                         if not recent_albums or recent_albums[0].get("album") != album_name:
                             if cover:
                                 recent_albums.insert(0, {
@@ -372,7 +376,8 @@ async def recognition_loop():
                             "summary": meta["summary"],
                             "cover": cover,
                             "discogs_status": meta["discogs_status"],
-                            "recent": recent_albums
+                            "recent": recent_albums,
+                            "i18n": t
                         }
         except Exception as e:
             print(f"[Loop Error] {e}")
