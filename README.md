@@ -1,123 +1,119 @@
-# 🎵 Vinyl Now Playing TV Display
+🎵 Vinyl Now Playing TV Display
 
-A lightweight, automated vinyl listening companion built for Raspberry Pi. It captures analog audio directly from your turntable or stereo receiver via a USB audio interface, identifies the current track in real-time using audio fingerprinting (Shazam), and renders high-resolution cover artwork, album metadata, and background production stories on your TV or smart display.
+A lightweight, automated vinyl listening companion built for the Raspberry Pi. It digitizes analog audio directly from your turntable via a Behringer UFO202 (integrated phono preamplifier & USB audio interface), identifies the currently spinning record in real time using Shazam's acoustic fingerprinting, and renders high-resolution album artwork, metadata, and production trivia onto your television or smart screen.
 
-Optionally, it automatically syncs each identified record directly into your **Discogs** collection folder without duplicate entries.
+Identified albums are seamlessly synced to your Discogs collection while preventing duplicate entries during replay sessions.
 
----
+✨ Features
 
-## ✨ Features
+Direct Phono Input & Plug-and-Play Digitization: Specifically configured for the Behringer UFO202 USB audio interface, eliminating the need for an external phono stage.
 
-- **Automated Audio Recognition:** Periodically samples audio from your USB audio interface and identifies songs using Shazam's algorithm without requiring paid API keys.
-- **TV-Optimized Modern Dashboard:** Tailored for 1080p and 4K displays (Amazon Silk Browser, Smart TV web browsers, or Raspberry Pi HDMI Kiosk mode) featuring dynamic ambient blur and clean typography.
-- **Album Context & Trivia:** Automatically fetches curated Wikipedia articles covering album recording sessions, studio anecdotes, and production details.
-- **Automatic Discogs Synchronization:** Locates the matching vinyl edition on Discogs and adds it to your collection without creating duplicate entries during replay sessions.
-- **Low Overhead & Headless Operation:** Runs smoothly in the background as a self-healing `systemd` service on Raspberry Pi 3B, 4, or 5 hardware.
+Smart Silence & Drone Detection (RMS Volume Gating): Samples audio in 5-second intervals and analyzes the root mean square (RMS) amplitude. Needle lift-offs, lead-in/run-out groove crackle, and monotonous ground hums are prevented from triggering false positive recognition (e.g., meditative drone frequencies).
 
----
+Multi-Language Support (LANGUAGE=de / LANGUAGE=en): Configurable directly in your .env file. Switches all dashboard labels dynamically and queries either German (de.wikipedia.org) or English (en.wikipedia.org) Wikipedia for localized recording anecdotes and artist background stories.
 
-## 🎛️ Hardware Requirements
+Authentic Record Label Detection: Dynamically extracts the actual vinyl label (e.g., EMI Electrola, Columbia, Scotti Bros.) via the Discogs API and MusicBrainz.
 
-1. **Raspberry Pi:** Model 3B, 3B+, 4, or 5 running Raspberry Pi OS (Debian Bookworm or newer recommended).
-2. **Audio Source:** Turntable with an internal/external phono pre-amplifier, or an amplifier with a dedicated line-level output (`Tape Out`, `Rec Out`, or `Zone 2`).
-3. **USB Audio Interface:** Class-compliant stereo line-in adapter, such as the **Behringer U-Control UCA202** or **UCA222** (RCA stereo line-in).
-4. **Display:** Any television with an integrated browser (Amazon Fire TV running Silk Browser, LG webOS, Samsung Tizen) or a dedicated screen connected via HDMI.
+TV-Optimized Dark UI: High-contrast dashboard with dynamic ambient background glow, live SVG turntable standby graphics, and responsive metadata tiles.
 
----
+Recently Played History: Compact, horizontal thumbnail carousel displaying the last 5 records played during your listening session.
 
-## 🚀 Installation & Setup
+Automated Discogs Synchronization: Automatically locates the exact vinyl press and adds it to your collection without duplicate additions.
 
-### 1. Install System Dependencies
-Update package indexes and install ALSA audio utilities, Git, and FFmpeg:
+Self-Healing systemd Service: Runs headless in the background and restarts automatically on reboot.
 
-```bash
+🎛️ Hardware Setup
+
+Raspberry Pi: Raspberry Pi 3B, 3B+, 4, or 5 running Raspberry Pi OS (Debian Bookworm or newer recommended).
+
+Turntable: Any standard record player with RCA phono cables and ground wire.
+
+Audio Interface: Behringer U-Phono UFO202:
+
+Set the physical input switch on the side of the UFO202 to PHONO (unless your turntable already features an integrated line preamp, in which case set it to LINE).
+
+Connect your turntable's ground lead to the ground thumb screw on the UFO202 to eliminate 50/60 Hz mains hum.
+
+Connect the UFO202's USB cable directly to a USB port on the Raspberry Pi.
+
+Display: Any TV running an integrated browser (Fire TV Silk Browser, LG webOS, Samsung Tizen) or a dedicated screen connected via HDMI.
+
+🚀 Installation & System Configuration
+
+1. Install System Dependencies
+
+Open a terminal on your Raspberry Pi and install the necessary audio capture utilities, compilers, and Git:
+
 sudo apt update
 sudo apt install -y python3-pip python3-venv alsa-utils git ffmpeg
-```
 
-### 2. Identify Audio Capture Card
-Plug your USB audio interface into the Raspberry Pi and inspect the ALSA recording hardware list:
 
-```bash
+2. Identify the Behringer UFO202 ALSA Address
+
+List all attached recording devices:
+
 arecord -l
-```
 
-Look for your USB codec (for example: `card 2: CODEC [USB Audio CODEC], device 0`). The resulting ALSA hardware address is formatted as:
 
-```text
+Look for the USB Audio entry (e.g., card 2: CODEC [USB Audio CODEC], device 0). The resulting ALSA hardware identifier is formatted as:
+
 plughw:2,0
-```
 
-*(If your card index is 1, use `plughw:1,0` instead).*
 
-### 3. Clone Repository & Set Up Virtual Environment
+(If the audio codec appears under card 1, use plughw:1,0).
 
-```bash
-git clone https://github.com/YOUR_USERNAME/vinyl-display.git /home/admin/vinyl-display
+3. Clone Repository & Set Up Virtual Environment
+
+cd /home/admin
+git clone https://github.com/Gusmax777/vinyl-display.git /home/admin/vinyl-display
 cd /home/admin/vinyl-display
 
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-```
 
-### 4. Configure Environment Variables
-Copy the template configuration file:
 
-```bash
+4. Configure Environment Variables
+
+Create your production configuration from the template:
+
 cp .env.example .env
 nano .env
-```
 
-Define your runtime settings:
 
-```ini
-# ALSA Audio Device identifier (e.g., plughw:2,0 or plughw:1,0)
+Set your configuration parameters:
+
+# ALSA hardware device identifier for the Behringer UFO202
 AUDIO_DEVICE=plughw:2,0
+
+# Web server port
+PORT=8080
+
+# Language preference: 'de' for German, 'en' for English
+LANGUAGE=de
 
 # Optional Discogs Collection Integration
 DISCOGS_TOKEN=your_personal_access_token_here
 DISCOGS_USERNAME=your_discogs_username_here
 
-# Local Web Server Port
-PORT=8080
-```
 
-> **Note on Discogs Setup:**
-> - Generate your personal token under **Discogs Settings -> Developers -> Generate new token**.
-> - Set `DISCOGS_USERNAME` to your public profile username (e.g., `VinylCollector99`), **not** your login email address.
+Discogs Setup:
 
-### 5. Interactive Test Run
-Verify audio recognition and metadata fetching manually:
+Generate a Personal Access Token under Discogs Settings -> Developers -> Generate new token.
 
-```bash
-source venv/bin/activate
-python3 app.py
-```
+Set DISCOGS_USERNAME to your public profile handle (e.g., VinylCollector), not your login email.
 
-Drop the needle on a record. After approximately 10 to 15 seconds, the console will print:
+⚙️ Running as a Persistent Service (systemd)
 
-```text
-[Track Detected] Artist - Track Title (Album: Album Title)
-```
+To run the application continuously in the background and ensure automatic restarts upon system boot:
 
-Open `http://<YOUR_RASPBERRY_IP>:8080` in your computer or mobile browser to verify the dashboard layout. Press `Ctrl + C` in the terminal to exit the test run.
+Create a systemd service file:
 
----
-
-## ⚙️ Running as a Persistent Service (systemd)
-
-To keep the application running continuously in the background and ensure it restarts after reboots:
-
-1. Create a systemd service definition file:
-
-```bash
 sudo nano /etc/systemd/system/vinyl.service
-```
 
-2. Add the following unit configuration (verify that the user and paths match your installation):
 
-```ini
+Add the following unit configuration (verify that your user and working paths match):
+
 [Unit]
 Description=Vinyl Now Playing Display Service
 After=network.target sound.target
@@ -131,55 +127,63 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-```
 
-3. Reload the systemd daemon, enable the service, and start it:
 
-```bash
+Enable and start the service:
+
 sudo systemctl daemon-reload
 sudo systemctl enable vinyl.service
-sudo systemctl start vinyl.service
-```
+sudo systemctl restart vinyl.service
 
-4. Monitor live service activity and recognition logs:
 
-```bash
+Monitor live status and audio recognition logs:
+
 journalctl -u vinyl.service -f
-```
 
----
 
-## 📺 Television Display Setup
+📺 Television Display Setup
 
-### Amazon Fire TV / Silk Browser
-1. Open the **Amazon Silk Browser** on your Fire TV.
-2. Navigate to `http://<YOUR_RASPBERRY_IP>:8080`.
-3. Press the **Menu button (☰)** on your Fire TV remote control and select **Enter Fullscreen** (or click the fullscreen icon on the toolbar).
-4. Bookmark the link or install **Bookmarker 1** from the Amazon Appstore to place a direct launcher tile on your Fire TV home screen.
+Amazon Fire TV / Silk Browser
 
-### Smart TV (LG webOS / Samsung Tizen)
-1. Open the integrated web browser.
-2. Enter the Raspberry Pi dashboard address: `http://<YOUR_RASPBERRY_IP>:8080`.
-3. Enable fullscreen mode via the browser toolbar and save the address as a browser bookmark or speed-dial item.
+Launch the Silk Browser on your Fire TV.
 
----
+Navigate to http://<RASPBERRY_PI_IP>:8080.
 
-## 🛠️ Troubleshooting
+Press the Menu button (☰) on the remote and select Enter Fullscreen.
 
-- **No track recognized ("Waiting for needle..."):**
-  Verify audio capture by running a manual 5-second recording test:
-  ```bash
-  arecord -D plughw:2,0 -f cd -d 5 /tmp/test.wav
-  ls -lh /tmp/test.wav
-  ```
-  Ensure the resulting file is approximately ~880 KB. If it is empty or silent, check your RCA cables and pre-amp output levels.
-- **Discogs Error 404:**
-  Ensure that `DISCOGS_USERNAME` is set to your exact public profile name on Discogs, not your email address.
-- **Port Conflicts:**
-  If port 8080 is already occupied by another service on your Raspberry Pi, adjust `PORT=8080` inside your `.env` file to another port (e.g., `8085`).
+Bookmark the URL or install Bookmarker 1 from the Amazon Appstore to pin a launcher tile to your Fire TV home ribbon.
 
----
+Smart TV (LG webOS / Samsung Tizen)
 
-## 📄 License
+Open the integrated web browser.
 
-This project is licensed under the terms of the [MIT License](LICENSE).
+Navigate to http://<RASPBERRY_PI_IP>:8080.
+
+Activate the browser's full-screen toggle and save the site to your favorites.
+
+🛠️ Troubleshooting
+
+Audio levels too low or buzzing:
+
+Verify that the physical switch on the Behringer UFO202 is set to PHONO.
+
+Ensure the turntable's thin ground cable is firmly screwed to the UFO202 ground terminal.
+
+Test manual recording:
+Run a 5-second capture test to verify input:
+
+arecord -D plughw:2,0 -f cd -d 5 /tmp/test.wav
+ls -lh /tmp/test.wav
+
+
+The file should be approximately ~880 KB.
+
+Discogs 404 Error:
+Ensure DISCOGS_USERNAME is your public profile username, not an email address.
+
+Git Push rejected on Pi:
+Synchronize remote changes with git pull origin main --rebase before running git push origin main.
+
+📄 License
+
+Distributed under the MIT License.
