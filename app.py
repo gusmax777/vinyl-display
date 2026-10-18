@@ -5,6 +5,8 @@ import re
 import wave
 import math
 import struct
+import subprocess
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -396,6 +398,50 @@ async def get_index():
 @app.get("/status")
 async def get_status():
     return JSONResponse(current_track)
+
+@app.get("/sonos.mp3")
+async def stream_for_sonos():
+    """Streams live vinyl audio as high-quality MP3 for Sonos speakers."""
+    ffmpeg_cmd = [
+        "ffmpeg",
+        "-f", "alsa",
+        "-i", "plug:shared_vinyl",
+        "-c:a", "libmp3lame",
+        "-b:a", "320k",
+        "-ar", "44100",
+        "-ac", "2",
+        "-f", "mp3",
+        "pipe:1"
+    ]
+    
+    proc = subprocess.Popen(
+        ffmpeg_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        bufsize=1024 * 64
+    )
+
+    def generate_chunks():
+        try:
+            while True:
+                chunk = proc.stdout.read(4096)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            proc.terminate()
+            proc.wait()
+
+    return StreamingResponse(
+        generate_chunks(),
+        media_type="audio/mpeg",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "Connection": "keep-alive"
+        }
+    )
 
 if __name__ == "__main__":
     import uvicorn
